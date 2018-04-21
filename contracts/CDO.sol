@@ -30,6 +30,8 @@ contract CDO is Ownable {
 
   event INVESTOR_REPAYED(uint amount, address investor, uint tranchIndex);
 
+  event AQUIERING_NEW_DEBT(address from, uint issuanceHash, address debtToken);
+
   modifier CDONotStarted() {
       require(CDOEndDate == 0);
       _;
@@ -86,11 +88,18 @@ contract CDO is Ownable {
   }
 
   // uses dharma to recieve ownership of a debt token.
-  function aquireNewDebt(address _tokenOwner, uint256 _tokenIssuanceHash, address _debtToken) public {
+  function aquireNewDebt(
+     address _tokenOwner,
+     uint256 _tokenIssuanceHash,
+     address _debtToken)
+     public
+     onlyOwner()
+     CDONotStarted()
+     {
       DebtToken debtTokenInst = DebtToken(_debtToken);
       debtTokenInst.transferFrom(_tokenOwner, this, _tokenIssuanceHash);
       debtTokens.push(debtTokenEntry(_debtToken, _tokenIssuanceHash));
-  }
+     }
 
   function addTranch(
     uint _repaymentDate,
@@ -99,7 +108,8 @@ contract CDO is Ownable {
     uint _totalSupply)
     public
     onlyOwner()
-    CDONotStarted() {
+    CDONotStarted()
+    {
       address tranch = new Tranch(owner,
                                    _totalSupply,
                                    _repaymentDate,
