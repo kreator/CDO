@@ -8,9 +8,13 @@ contract Tranch is Ownable {
   address tranchToken;
   uint repaymentDate;
   uint instrestRatePercentage;
-  // tranch token to principle token ratio. example 5 will mean 5 Tranchtokens are 1 principleToken
+
+  /**
+   * tranch token to principle token ratio. example 5 will mean 5 Tranchtokens are 1 principleToken
+   * the formula for repayment is: ((amount / tokenRate) * (instrestRatePercentage + 100)/100)
+   */
   uint tokenRate;
-  // the formula for repayment is: ((amount / tokenRate) * (instrestRatePercentage + 100)/100)
+
 
   modifier tranchRunning() {
       require(repaymentDate > block.timestamp);
@@ -22,14 +26,17 @@ contract Tranch is Ownable {
       _;
   }
 
-  //will recieve all the parameters needed to create a blank CDO.
+  /**
+  * will recieve all the parameters needed to create a blank CDO.
+  */
   function Tranch(
     address _owner,
     uint _totalSupply,
     uint _repaymentDate,
     uint _instrestRatePercentage,
     uint _tokenRate
-  ) public
+  )
+    public
   {
     require(_repaymentDate > block.timestamp);
     owner = _owner;
@@ -56,23 +63,43 @@ contract Tranch is Ownable {
     return tokenRate;
   }
 
-  function getInvestorBalance(address investor) public view returns(uint) {
+  /**
+   * Returns the balance of an investor in this tranch
+   */
+
+  function getInvestorBalance(address _investor) public view returns(uint) {
     TranchToken tranchTokenInst = TranchToken(tranchToken);
-    return tranchTokenInst.balanceOf(investor);
+    return tranchTokenInst.balanceOf(_investor);
   }
 
-  function payInvestor(address _investor, uint _principalAmount) tranchRunning() public {
+  /**
+   * Pays investor the tranch tokens he is owed after making an investment
+   */
+  function payInvestor(
+    address _investor,
+    uint _principalAmount
+  )
+    tranchRunning()
+    public
+  {
     TranchToken tranchTokenInst = TranchToken(tranchToken);
     require(tranchTokenInst.transfer(_investor, _principalAmount*tokenRate));
   }
 
-  function cashOutInvestor(address investor) public tranchOver() returns(uint) {
+  /**
+   * Pays back the investor with principle token after the tranch period has ended
+   */
+  function cashOutInvestor(address _investor)
+    public
+    tranchOver()
+    returns(uint)
+  {
     TranchToken tranchTokenInst = TranchToken(tranchToken);
-    uint balance = tranchTokenInst.balanceOf(investor);
+    uint balance = tranchTokenInst.balanceOf(_investor);
     if (balance == 0) {
       return 0;
     }
-    require(tranchTokenInst.transferFrom(investor, this, balance));
+    require(tranchTokenInst.transferFrom(_investor, this, balance));
     return balance;
   }
 }

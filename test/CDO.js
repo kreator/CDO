@@ -2,7 +2,7 @@ var CDO = artifacts.require("../contracts/CDO");
 var ERC20 = artifacts.require("../contracts/TranchToken");
 var DebtToken = artifacts.require("@dharmaprotocol/contracts/contracts/DebtToken");
 var DebtRegistry = artifacts.require("@dharmaprotocol/contracts/contracts/DebtRegistry");
-// const debtTokenAddr = "0xae6ba30a5606f632f316f3a58e1cc3c539df3425"
+
 
 contract('CDO test', async (accounts) => {
   let CDOInst;
@@ -32,22 +32,19 @@ contract('CDO test', async (accounts) => {
   it("Can Add and remove authorizations to mint debt tokens", async () => {
     await debtTokenInst.addAuthorizedMintAgent(accounts[0], {from: accounts[0]});
     let agents = await debtTokenInst.getAuthorizedMintAgents.call();
-    //console.log(agents);
+
     await debtTokenInst.revokeMintAgentAuthorization(accounts[0], {from: accounts[0]});
     agents = await debtTokenInst.getAuthorizedMintAgents.call();
-    //console.log(agents);
+
     assert.equal(agents.length, 0);
   });
 
   it("Mint 3 debt tokens to account[0], approve to CDO and aquire by CDO", async () => {
     await debtTokenInst.addAuthorizedMintAgent(accounts[0], {from: accounts[0]});
-    //agents = await debtTokenInst.getAuthorizedMintAgents.call();
-    //console.log("Mint Agents: " + agents);
-    //await registryInst.addAuthorizedInsertAgent(accounts[0], {from: accounts[0]});
+
     await registryInst.addAuthorizedInsertAgent(debtTokenInst.address, {from: accounts[0]});
     await registryInst.addAuthorizedEditAgent(debtTokenInst.address, {from: accounts[0]});
-    //agents = await registryInst.getAuthorizedInsertAgents.call();
-    //console.log("Insert Agents: " + agents);
+
     let watcher = registryInst.LogInsertEntry();
     await debtTokenInst.create(accounts[0], accounts[0], accounts[0], accounts[0], 10, accounts[0], "0x123456", 1, {from: accounts[0]});
     let events = watcher.get();
@@ -93,9 +90,15 @@ contract('CDO test', async (accounts) => {
     let jrTranchAddr = await CDOInst.getTranchByIndex(0);
     let srTranchAddr = await CDOInst.getTranchByIndex(1);
 
-    console.log(jrTranchAddr + "\n" + srTranchAddr);
+    //console.log(jrTranchAddr + "\n" + srTranchAddr);
 
-    //add an invest test
-    //add a repay investor test
+    /**
+    * a test for the investment part is still missing and needs to be implemented here.
+    */
   });
+
+  /**
+  * Add A test for the Managmenet Fees mechanism needs to be implemented here.
+  */
+
 });

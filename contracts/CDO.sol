@@ -9,8 +9,11 @@ contract CDO is Ownable {
   uint managementFeesReleaseDate;
   uint managementFeesDateIncrement;
   uint CDOEndDate = 0;
-  // the token we refer to as the principle.
-  //All CDO tranch tokens rates will refer to the amount of principleTokens Units
+
+  /**
+  * the token we refer to as the principle.
+  * All CDO tranch tokens rates will refer to the amount of principleTokens Units
+  */
   address principalToken;
 
   struct debtTokenEntry {
@@ -26,11 +29,11 @@ contract CDO is Ownable {
 
   event RELEASED_MANAGEMENT_FEES();
 
-  event INVESTMENT_MADE(uint amount, address investor, uint tranchIndex);
+  event AQUIERED_NEW_DEBT(uint _tokenIssuanceHash, address _debtToken);
 
-  event INVESTOR_REPAYED(uint amount, address investor, uint tranchIndex);
+  event INVESTMENT_WAS_MADE(uint _amount, address _investor, uint _tranchIndex);
 
-  event AQUIERING_NEW_DEBT(address from, uint issuanceHash, address debtToken);
+  event INVESTOR_WAS_REPAYED(uint _amount, address _investor, uint _tranchIndex);
 
   modifier CDONotStarted() {
       require(CDOEndDate == 0);
@@ -62,8 +65,16 @@ contract CDO is Ownable {
     _;
   }
 
-  //will recieve all the parameters needed to create a blank CDO.
-  function CDO(uint _managmentFees, uint _managementFeesDateIncrement, address _principalToken) public {
+  /**
+  * Will recieve all the parameters needed to create a blank CDO.
+  */
+  function CDO(
+    uint _managmentFees,
+    uint _managementFeesDateIncrement,
+    address _principalToken
+  )
+    public
+  {
       owner = msg.sender;
       managmentFees = _managmentFees;
       managementFeesDateIncrement = _managementFeesDateIncrement;
@@ -71,69 +82,103 @@ contract CDO is Ownable {
       principalToken = _principalToken;
   }
 
-  // gets the CDO ERC20 contract address of the principal Token
+  /**
+  * gets the CDO ERC20 contract address of the principal Token
+  */
   function getPrincipalToken() public view returns(address) {
       return principalToken;
   }
 
-  // returns the tranches arrays.
-  function getTranchByIndex(uint _tranchIndex) public tranchExists(_tranchIndex) view returns(address) {
+  /**
+  * Returns the tranches arrays.
+  */
+  function getTranchByIndex(uint _tranchIndex)
+    public
+    tranchExists(_tranchIndex)
+    view
+    returns(address)
+  {
       return tranchPartition[_tranchIndex];
   }
 
-  // returns the tranches arrays.
-  function getDebtByIndex(uint _debtTokenIndex) public debtTokenExists(_debtTokenIndex) view returns(address,uint) {
+  /**
+  * Returns the tranches arrays.
+  */
+  function getDebtByIndex(uint _debtTokenIndex)
+    public
+    debtTokenExists(_debtTokenIndex)
+    view
+    returns(address,uint)
+  {
       debtTokenEntry memory currentDebt = debtTokens[_debtTokenIndex];
       return (currentDebt.debtToken, currentDebt.tokenIssuanceHash);
   }
 
-  // uses dharma to recieve ownership of a debt token.
+  /**
+  * Uses dharma to recieve ownership of a debt token.
+  */
   function aquireNewDebt(
      address _tokenOwner,
      uint256 _tokenIssuanceHash,
-     address _debtToken)
+     address _debtToken
+  )
      public
      onlyOwner()
      CDONotStarted()
-     {
+  {
       DebtToken debtTokenInst = DebtToken(_debtToken);
       debtTokenInst.transferFrom(_tokenOwner, this, _tokenIssuanceHash);
       debtTokens.push(debtTokenEntry(_debtToken, _tokenIssuanceHash));
-     }
 
+      AQUIERED_NEW_DEBT(_tokenIssuanceHash, _debtToken);
+  }
+
+  /**
+  * Adds a new Tranch by deploying a Tranch contract and adding it to the tranch partition
+  */
   function addTranch(
     uint _repaymentDate,
     uint _instrestRatePercentage,
     uint _tokenRate,
-    uint _totalSupply)
+    uint _totalSupply
+  )
     public
     onlyOwner()
     CDONotStarted()
-    {
+  {
       address tranch = new Tranch(owner,
                                    _totalSupply,
                                    _repaymentDate,
                                    _instrestRatePercentage,
                                    _tokenRate);
       tranchPartition.push(tranch);
-    }
+  }
 
-    // after all acquisitions are done. mints the new CDO token and enables purchase.
+  /**
+  * After all acquisitions are done. mints the new CDO token and enables purchase.
+  */
   function startCDO(
-      uint _CDOEndDate
-      ) onlyOwner()
-        CDONotStarted()
-    //  validateTranchPartition(_repaymentDates, _percentegeOfTotals)
-      public
-      {
+    uint _CDOEndDate
+  )
+    onlyOwner()
+    CDONotStarted()
+    public
+  {
       require(_CDOEndDate > block.timestamp);
       CDOEndDate = _CDOEndDate;
+
       CDO_STARTED();
   }
 
-  //this will happen after the investor allowed the CDO to pull funds
-  //if the pulling of funds was succesful it will trasfer it the CDO tokens in exchange
-  function invest(uint _principalAmount, address _investor, uint _tranchIndex)
+  /**
+  * This will happen after the investor allowed the CDO to pull funds
+  * If the pulling of funds was succesful it will trasfer it the CDO tokens in exchange
+  */
+  function invest(
+    uint _principalAmount,
+    address _investor,
+    uint _tranchIndex
+  )
     CDORunning()
     tranchExists(_tranchIndex)
     public
@@ -142,13 +187,21 @@ contract CDO is Ownable {
       ERC20 principalTokenInst = ERC20(principalToken);
       require(principalTokenInst.transferFrom(_investor, this, _principalAmount));
       tranchInst.payInvestor(_investor, _principalAmount);
+
+      INVESTMENT_WAS_MADE(_principalAmount, _investor, _tranchIndex);
   }
 
-  // checks if the tranch period is over and investor has tokens and is in the tranch.
-  // if so: sends the investors funds according to the token amount and tokenETWHRate
-  function repayInvestor(address _investor, uint _tranchIndex)
+  /**
+  * Checks if the tranch period is over and investor has tokens and is in the tranch.
+  * if so: sends the investors funds according to the token amount and tokenETWHRate
+  */
+  function repayInvestor(
+    address _investor,
+    uint _tranchIndex
+  )
     tranchExists(_tranchIndex)
-    public {
+    public
+  {
       Tranch tranchInst = Tranch(tranchPartition[_tranchIndex]);
       uint balanceOfInvestor = tranchInst.cashOutInvestor(_investor);
       require(balanceOfInvestor > 0);
@@ -159,23 +212,34 @@ contract CDO is Ownable {
       // in case investor has funds, refund him fully with intrest
       uint principalToRepay = ((balanceOfInvestor / tokenRate) * (instrestRatePercentage + 100)/100);
       require(principalTokenInst.transferFrom(this, _investor, principalToRepay));
+
+      INVESTOR_WAS_REPAYED(principalToRepay, _investor, _tranchIndex);
   }
 
-  // restores funds to the owner at the end of the CDO or under other conditions maybe
+  /**
+  * Restores funds to the owner at the end of the CDO or under other conditions maybe
+  */
   function repayOwner()
     CDOOver()
-    public {
+    public
+  {
       ERC20 principalTokenInst = ERC20(principalToken);
       principalTokenInst.transfer(owner, principalTokenInst.balanceOf(this));
   }
 
+  /**
+  * Releases the management fees to the CDO Owner.
+  * This function will transfer fees one time only for each management fee period that has passsed.
+  */
   function releaseManagementFees()
     CDORunning()
     canReleaseManagementFees()
-    public {
+    public
+  {
       ERC20 principalTokenInst = ERC20(principalToken);
       require(principalTokenInst.transferFrom(this, owner, managmentFees));
       managementFeesReleaseDate += managementFeesDateIncrement;
+
       RELEASED_MANAGEMENT_FEES();
   }
 }
