@@ -78,6 +78,8 @@ function CDO(
     owner = msg.sender;
     managmentFees = _managmentFees;
     managementFeesDateIncrement = _managementFeesDateIncrement;
+    // VULNERABILITY: Integer overflow, can potentially allow manager to siphon funds from the account
+    // Should use safe math
     managementFeesReleaseDate = block.timestamp + managementFeesDateIncrement;
     principalToken = _principalToken;
 }
